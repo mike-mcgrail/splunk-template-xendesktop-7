@@ -40,14 +40,22 @@
       <title>User ICA Latency</title>
       <search>
         <query>
+	<![CDATA[
 	`xd_index` sourcetype="xendesktop:*:session" MachineName="$server$" SiteName="$SiteName$" UserName="$username$" StartTime!="" |
-	eval UserName = lower(UserName) |
+	eval MachineName = upper(MachineName) |
+	eval UserName = upper(UserName) |
 	rename MachineName AS host |
-	join host UserName [search `xd_perfmon_index` sourcetype="PerfmonMK:ICASession" host="$server$" UserName!="_Server_Total" | stats count by host UserName Latency_-_Session_Average | fields host UserName Latency_-_Session_Average | eval UserName = lower(UserName)] |
+	join host UserName [| mstats avg(_value) AS "Latency_-_Session_Average" WHERE `xd_perfmon_index` AND metric_name="ICA_Session.Latency_-_Session_Average" AND instance!="_Server_Total" span=60s BY host,instance 
+    | eval host=upper(host) 
+    | eval UserName=upper(instance) 
+    | rex field=UserName "_\((?<UserName>.*)\)" 
+    | stats count by host UserName Latency_-_Session_Average 
+    | fields host UserName Latency_-_Session_Average] |
 	makemv delim=";" ApplicationsInUse |
 	stats values(ClientName) as Device values(IPAddress) as "IP Address" values(ClientVersion) as "Client Version" values(ApplicationsInUse) as Applications mean(Latency_-_Session_Average) as ml BY host UserName StartTime |
 	where ml >= $meanLatency$ |
 	rename host AS Host UserName AS "User Name" ml AS "Mean Latency" StartTime AS "Log on Time"
+	]]>
 	      </query>
       </search>
     </table>

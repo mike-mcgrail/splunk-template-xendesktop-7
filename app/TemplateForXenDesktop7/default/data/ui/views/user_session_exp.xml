@@ -18,18 +18,21 @@
   </fieldset>
   
   <search id="basePerfCPU">
-    <query>`xd_perfmon_index` sourcetype="PerfmonMk:Processor" instance="_Total" host="$machinename$" | eval wt = `CPU-Warning` | eval ct = `CPU-Critical` | timechart avg(%_Processor_Time) as cpu max(wt) AS "Warning Threshold" max(ct) AS "Critical Threshold"</query>
+    <query>| mstats avg("Processor.%_Processor_Time") AS "%_Processor_Time" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance="_Total" span=60s BY host | eval wt = `CPU-Warning` | eval ct = `CPU-Critical` | timechart avg(%_Processor_Time) as cpu max(wt) AS "Warning Threshold" max(ct) AS "Critical Threshold"</query>
   </search>
   
   <search id="basePerfMem">
-    <query>
-	     `xd_perfmon_index` source="perfmonmk:memory" host="$machinename$" | lookup winHosts host OUTPUT TotalPhysicalMemoryKB | eval Available_KB = (Available_Bytes / 1024) | eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) | timechart avg(pctFreeMem) AS pctFreeMem
+    <query>| mstats avg("Memory.Available_Bytes") AS "Available_Bytes" WHERE `xd_perfmon_index` AND host=$machinename$ span=60s BY host, instance | eval host=upper(host) | lookup winHosts host OUTPUT TotalPhysicalMemoryKB | eval Available_KB = (Available_Bytes / 1024) | eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) | timechart avg(pctFreeMem) AS pctFreeMem
     </query>
   </search>
   
   <search id="basePerfICA">
     <query>
-      `xd_perfmon_index` sourcetype="PerfmonMk:ICASession" host="$machinename$" | rex field=instance ".*\\((?P&lt;UserName&gt;[^\\)]+)" | eval UserName=lower(UserName) | where UserName=lower("$username$") | bin _time span=1m | stats count by _time Latency_-_Session_Average
+      <![CDATA[
+      | mstats avg(_value) AS "Latency_-_Session_Average" WHERE `xd_perfmon_index` AND metric_name="ICA_Session.Latency_-_Session_Average" AND instance!="_Server_Total" span=60s BY host,instance
+      | eval UserName=lower(instance) | rex field=UserName "_\((?<UserName>.*)\)" 
+      | where UserName=lower("$username$") | bin _time span=1m | stats count by _time Latency_-_Session_Average
+      ]]>
     </query>
   </search>
   
@@ -52,7 +55,7 @@
       <chart id="timechartCPU">
         <title>CPU usage over time</title>
         <search id="timechartCPUsearch" base="basePerfCPU">
-          <query>eval wt = `CPU-Warning` | eval ct = `CPU-Critical` | timechart avg(%_Processor_Time) AS "% Processor Time" max(wt) AS "Warning Threshold" max(ct) AS "Critical Threshold"</query>
+          <query>eval wt = `CPU-Warning` | eval ct = `CPU-Critical` | timechart avg(cpu) AS "% Processor Time" max(wt) AS "Warning Threshold" max(ct) AS "Critical Threshold"</query>
         </search>
         <option name="charting.chart">line</option>
         <option name="charting.chart.nullValueMode">connect</option>
@@ -127,7 +130,13 @@
         <title>Virtual Channel Bandwidth Usage (bps)</title>
         <search id="timechartVCSearch">
           <query>
-            `xd_perfmon_index` host="$machinename$" sourcetype="PerfmonMk:ICASession" | rex field=instance ".*\\((?P&lt;UserName&gt;[^\\)]+)" | eval UserName=lower(UserName) | where UserName=lower("$username$") | timechart max(*_Bandwidt*) AS *_Bandwidt*
+            <![CDATA[
+            | mstats max(_value) as "maxBandwidth" WHERE `xd_perfmon_index` AND host="$machinename$" AND metric_name=*_Bandwidt* span=60s BY instance, metric_name
+            | eval UserName=lower(instance)
+            | rex field=UserName "_\((?<UserName>.*)\)"
+            | where UserName=lower("$username$")
+            | timechart max(maxBandwidth) BY metric_name
+            ]]>
           </query>
         </search>
         <option name="charting.chart">line</option>

@@ -1,1 +1,7 @@
-Check the Installation.pdf file for instructions.
+The original Installation.pdf is in the GitHub repository (https://github.com/splunk/splunk-template-xendesktop-7/blob/master/app/TemplateForXenDesktop7/Installation.pdf).  This fork assumes Citrix XenDektop 7 data is being added to an existing Splunk environment already collecting PerfMon metrics with the Windows TA and Splunk App for Infrastructure
+1. Universal Forwarders are installed on all machines
+2. Splunk_TA_windows is installed
+3. Metrics index (em_metrics is the default, this can be changed with the `xd_perfmon_index` macro) is configured
+4. Splunk_TA_Citrix_XD7-Broker goes on all XenDesktop Brokers (running as local administrator)
+5. Splunk_TA_Citrix_XD7-VDA goes on all desktops or servers that have the Citrix Virtual Delivery Agent (VDA) installed (running as local administrator)
+6. PowerShell execution policy has been set on the XenDesktop machines to allow the scripts to run.

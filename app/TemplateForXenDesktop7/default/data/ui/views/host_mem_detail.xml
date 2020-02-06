@@ -3,7 +3,7 @@
   
   <fieldset autoRun="true">
     
-    <input type="dropdown" token="SiteName">
+    <input type="dropdown" token="SiteName" searchWhenChanged="true">
       <label>Site:</label>
       <choice value="*">All Sites</choice>
       <default>*</default>
@@ -13,23 +13,25 @@
         <query>| inputlookup lookup_host_site.csv | stats count by SiteName</query>
       </search>
     </input>
-    
-    <input type="time">
+    <input type="time" searchWhenChanged="true">
       <label>Time Range:</label>
       <default>Last 60 minutes</default>
     </input>
-
-    <input type="dropdown" token="machinename">
-      <label>Machine:</label>
+    <input type="dropdown" token="machinename" searchWhenChanged="true">
+      <label>Machine</label>
+      <fieldForLabel>host</fieldForLabel>
+      <fieldForValue>host</fieldForValue>
       <search>
-      	<query>
-      	  | inputlookup lookup_host_site.csv | search SiteName="$SiteName$"
-      	</query>
+        <query>| mcatalog values(host) AS "MachineName" WHERE `xd_perfmon_index` BY host
+| eval host = upper(MachineName) 
+| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+| search SiteName=$SiteName$
+| stats count by host
+        </query>
+        <earliest>$earliest$</earliest>
+        <latest>$latest$</latest>
       </search>
-      <fieldForLabel>MachineName</fieldForLabel>
-      <fieldForValue>MachineName</fieldForValue>
     </input>
-    
   </fieldset>
   
   <row>
@@ -47,16 +49,18 @@
       <chart id="chartAvailMem">
         <title>Memory Usage</title>
         <search>
-          <query>
-          	`xd_perfmon_index` sourcetype="PerfmonMk:Memory" SiteName="$SiteName$" host="$machinename$" |
-          	lookup winHosts host OUTPUT TotalPhysicalMemoryKB |
-          	eval Available_KB = (Available_Bytes / 1024) |
-          	eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) |
-          	eval pctUsedMem = 100 - pctFreeMem |
-          	stats avg(pctUsedMem) AS avg |
-          	eval memMark1 = 100 - `Mem-Warning` |
-          	eval memMark2 = 100 - `Mem-Critical` |
-          	gauge avg 0 memMark1 memMark2 100
+          <query>| mstats avg("Memory.Available_Bytes") AS "AvailBytes" WHERE `xd_perfmon_index` AND host=$machinename$ span=60s BY host, instance 
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName=* host=$machinename$
+          | lookup winHosts host OUTPUT TotalPhysicalMemoryKB
+          | eval Available_KB = (AvailBytes / 1024)
+          | eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) 
+          | eval pctUsedMem = 100 - pctFreeMem
+          | stats avg(pctUsedMem) AS avg
+          | eval memMark1 = 100 - `Mem-Warning` 
+          | eval memMark2 = 100 - `Mem-Critical` 
+          | gauge avg 0 memMark1 memMark2 100
   	      </query>
         </search>
         <option name="charting.axisTitleX.visibility">visible</option>
@@ -76,15 +80,17 @@
     
       <chart>
         <search>
-          <query>
-          	`xd_perfmon_index` sourcetype="PerfmonMk:Memory" SiteName="$SiteName$" host="$machinename$" |
-          	lookup winHosts host OUTPUT TotalPhysicalMemoryKB |
-          	eval Available_KB = (Available_Bytes / 1024) |
-          	eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) |
-          	eval pctUsedMem = 100 - pctFreeMem |
-          	eval warn = 100-`Mem-Warning` |
-          	eval critical = 100-`Mem-Critical` |
-          	timechart avg(pctUsedMem) AS "% Used Memory" max(warn) AS "Warning Threshold" max(critical) AS "Critical Threshold"
+          <query>| mstats avg("Memory.Available_Bytes") AS "AvailBytes" WHERE `xd_perfmon_index` AND host=$machinename$ span=60s BY host, instance 
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName=* host=$machinename$
+          | lookup winHosts host OUTPUT TotalPhysicalMemoryKB
+          | eval Available_KB = (AvailBytes / 1024)
+          | eval pctFreeMem = round((Available_KB / TotalPhysicalMemoryKB) * 100, 2) 
+          | eval pctUsedMem = 100 - pctFreeMem
+          | eval warn = 100-`Mem-Warning`
+          | eval critical = 100-`Mem-Critical`
+          | timechart avg(pctUsedMem) AS "% Used Memory" max(warn) AS "Warning Threshold" max(critical) AS "Critical Threshold"
   	      </query>
         </search>
         <option name="charting.axisTitleX.visibility">collapsed</option>
@@ -109,10 +115,12 @@
       <chart id="chartPagesPerSec">
         <title>Pages per Second</title>
         <search>
-          <query>
-          	`xd_perfmon_index` sourcetype="PerfmonMk:Memory" SiteName="$SiteName$" host="$machinename$" |
-          	stats avg(Pages/sec) AS avg |
-          	gauge avg 0 `Pages-sec-Warning` `Pages-sec-Critical` 30
+          <query>| mstats avg("Memory.Pages/sec") AS "Pages/sec" WHERE `xd_perfmon_index` AND host=$machinename$ span=60s BY host, instance 
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName=* host=$machinename$
+          | stats avg(Pages/sec) AS avg
+          | gauge avg 0 `Pages-sec-Warning` `Pages-sec-Critical` 30
   	      </query>
         </search>
         <option name="charting.axisTitleX.visibility">visible</option>
@@ -132,11 +140,13 @@
     
       <chart>
         <search>
-          <query>
-          	`xd_perfmon_index` sourcetype="PerfmonMk:Memory" SiteName="$SiteName$" host="$machinename$" |
-          	eval warn=`Pages-sec-Warning` |
-          	eval critical = `Pages-sec-Critical` |
-          	timechart avg(Pages/sec) AS "Pages/sec" max(warn) AS "Warning Threshold" max(critical) AS "Critical Threshold"
+          <query>| mstats avg("Memory.Pages/sec") AS "Pages/sec" WHERE `xd_perfmon_index` AND host=$machinename$ span=60s BY host, instance 
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName=* host=$machinename$
+          | eval warn=`Pages-sec-Warning`
+          | eval critical = `Pages-sec-Critical`
+          | timechart avg(Pages/sec) AS "Pages/sec" max(warn) AS "Warning Threshold" max(critical) AS "Critical Threshold"
   	      </query>
         </search>
         <option name="charting.axisTitleX.visibility">collapsed</option>
@@ -164,9 +174,11 @@
       <chart id="chartWorkingSet">
         <title>Memory Usage by Process</title>
         <search>
-          <query>
-          	`xd_perfmon_index` SiteName="$SiteName$" host="$machinename$" sourcetype="PerfmonMk:Process" instance!="Idle" instance!="_Total" |
-          	timechart avg(Working_Set_-_Private) by instance
+          <query>| mstats avg("Process.Working_Set_-_Private") AS "Working_Set_-_Private" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="Idle" AND instance!="_Total" span=60s BY host, instance 
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName=* host=$machinename$
+          | timechart avg(Working_Set_-_Private) by instance
   	      </query>
         </search>
         <option name="charting.axisTitleX.visibility">collapsed</option>

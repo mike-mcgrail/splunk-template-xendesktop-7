@@ -2,9 +2,11 @@
   <label>Application Crashes</label>
   
   <search id="base">
-    <query>
-      `xd_winevents_index` sourcetype="WinEventLog:Application" Type="Error" EventCode &gt;= 1000 EventCode &lt;= 1011 host="$machinename$" SiteName="$SiteName$"|
-      stats count by _time host Faulting_app_name EventCode Exception_code Message
+    <query>`xd_winevents_index` source="WinEventLog:Application" sourcetype=WinEventLog Type="Error" EventCode &gt;= 1000 EventCode &lt;= 1011 host="$machinename$"
+      | eval host=upper(host)
+      | lookup lookup_host_site.csv MachineName AS host OUTPUTNEW SiteName AS SiteName 
+      | search SiteName="$SiteName$"
+      | stats count by _time host Faulting_app_name EventCode Exception_code Message
     </query>
   </search>
   

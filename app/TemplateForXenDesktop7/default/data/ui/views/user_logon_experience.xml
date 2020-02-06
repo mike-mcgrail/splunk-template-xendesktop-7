@@ -17,7 +17,7 @@
     <single>
       <search>
         <query>
-          `xd_winevents_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
+          `xd_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
           transaction ActivityId |
           fields duration
         </query>
@@ -32,7 +32,7 @@
     <chart>
       <search>
         <query>
-          `xd_winevents_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
+          `xd_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
           reverse |
           search *MilliSeconds* | chart max(*MilliSeconds*) AS *MilliSeconds* BY Message
         </query>
@@ -47,7 +47,7 @@
     <table id="userSessions">
       <search>
         <query>
-          `xd_winevents_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
+          `xd_index` sourcetype="wineventlog:microsoft-windows-grouppolicy/operational" ActivityId="$ActivityId$" |
           reverse |
           table EventID OpcodeDisplayName Message CSEElaspedTimeInMilliSeconds CSEExtensionName DescriptionString OperationElaspedTimeInMilliSeconds PolicyElaspedTimeInSeconds |
           rename EventID AS "Event ID" OpcodeDisplayName AS "Operation" CSEElaspedTimeInMilliSeconds AS "CSE Elapsed Time" CSEExtensionName AS "CSE Name" DescriptionString AS "Description" OperationElaspedTimeInMilliSeconds AS "Operation Elapsed Time" PolicyElaspedTimeInSeconds AS "Policy Elasped Time"

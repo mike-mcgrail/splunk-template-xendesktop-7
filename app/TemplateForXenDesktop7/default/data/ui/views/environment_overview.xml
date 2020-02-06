@@ -13,7 +13,10 @@
     </input>
     <input type="time">
       <label>Time Range:</label>
-      <default>Last 24 hours</default>
+      <default>
+        <earliest>@d</earliest>
+        <latest>now</latest>
+      </default>
     </input>
   </fieldset>
   <row>
@@ -40,16 +43,18 @@
       <table id="tblHealth">
         <title>Health</title>
         <search>
-          <query>`xd_index` sourcetype="WMI:Services" SiteName="$SiteName$" `Services-Inf` |
+          <query>`xd_winservice_index` source=service SiteName="$SiteName$" `Services-Inf` |
 	stats latest(State) AS State by DisplayName host |
 	stats count BY State |
 	where State!="Running" |
 	appendpipe [stats count | where count == 0] |
-	appendcols [search `xd_index` sourcetype="WMI:Services" SiteName="*" `Services-Inf` | stats count AS serviceCount] |
+	appendcols [search `xd_winservice_index` source=service SiteName="*" `Services-Inf` | stats count AS serviceCount] |
 	eval Status = if(serviceCount == 0, "No Data", if(count == 0, "All Services Running", count." Service(s) Critical")) |
 	fillnull State value="*" |
 	eval range=if(serviceCount == 0, "elevated", if(count &gt; 0, "severe", "low")) |
 	table Status State range</query>
+	      <earliest>-5m</earliest>
+          <latest>now</latest>
         </search>
         <drilldown>
           <link>

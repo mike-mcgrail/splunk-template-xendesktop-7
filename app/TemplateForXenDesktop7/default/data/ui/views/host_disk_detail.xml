@@ -1,7 +1,7 @@
 <form script="host_disk_detail.js" stylesheet="host_disk_detail.css">
   <label>Machine Disk Detail</label>
   <fieldset autoRun="true">
-    <input type="dropdown" token="SiteName">
+    <input type="dropdown" token="SiteName" searchWhenChanged="true">
       <label>Site:</label>
       <choice value="*">All Sites</choice>
       <default>*</default>
@@ -11,17 +11,24 @@
         <query>| inputlookup lookup_host_site.csv | stats count by SiteName</query>
       </search>
     </input>
-    <input type="time">
+    <input type="time" searchWhenChanged="true">
       <label>Time Range:</label>
       <default>Last 60 minutes</default>
     </input>
-    <input type="dropdown" token="machinename">
-      <label>Machine:</label>
+    <input type="dropdown" token="machinename" searchWhenChanged="true">
+      <label>Machine</label>
+      <fieldForLabel>host</fieldForLabel>
+      <fieldForValue>host</fieldForValue>
       <search>
-        <query>| inputlookup lookup_host_site.csv | search SiteName="$SiteName$"</query>
+        <query>| mcatalog values(host) AS "MachineName" WHERE `xd_perfmon_index` BY host
+| eval host = upper(MachineName) 
+| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+| search SiteName=$SiteName$
+| stats count by host
+        </query>
+        <earliest>$earliest$</earliest>
+        <latest>$latest$</latest>
       </search>
-      <fieldForLabel>MachineName</fieldForLabel>
-      <fieldForValue>MachineName</fieldForValue>
     </input>
   </fieldset>
   <row>
@@ -47,9 +54,11 @@
       
       <chart id="chartPctDiskTime">
         <search>
-          <query>
-            `xd_perfmon_index` sourcetype="PerfmonMk:LogicalDisk" SiteName="$SiteName$" host="$machinename$" instance!="_Total" |
-          	timechart avg(%_Disk_Time) AS avg by instance
+          <query>| mstats avg("LogicalDisk.%_Disk_Time") AS "%_Disk_Time" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="_Total" span=60s BY host, instance
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName 
+          | search SiteName=$SiteName$ host=$machinename$
+          | timechart avg(%_Disk_Time) AS avg by instance
         	</query>
           <earliest>$earliest$</earliest>
           <latest>$latest$</latest>
@@ -106,9 +115,11 @@
       </html>
       <chart id="chartDiskQueueLen">
         <search>
-          <query>
-            `xd_perfmon_index` sourcetype="PerfmonMk:LogicalDisk" SiteName="$SiteName$" host="$machinename$" instance!="_Total" |
-	          timechart avg(Current_Disk_Queue_Length) AS avg by instance
+          <query>| mstats avg("LogicalDisk.Current_Disk_Queue_Length") AS "Current_Disk_Queue_Length" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="_Total" span=60s BY host, instance
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName 
+          | search SiteName=$SiteName$ host=$machinename$
+          | timechart avg(Current_Disk_Queue_Length) AS avg by instance
           </query>
           <earliest>$earliest$</earliest>
           <latest>$latest$</latest>
@@ -167,8 +178,11 @@
       <chart>
         <title>Avg. Disk sec/Transfer</title>
         <search>
-          <query>`xd_perfmon_index` sourcetype="PerfmonMk:LogicalDisk" SiteName="$SiteName$" host="$machinename$" instance!="_Total" |
-	timechart avg(Avg._Disk_sec/Transfer) AS "Avg. Disk sec/Transfer" by instance</query>
+          <query>| mstats avg("LogicalDisk.Avg._Disk_sec/Transfer") AS "Avg._Disk_sec/Transfer" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="_Total" span=60s BY host, instance
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName 
+          | search SiteName=$SiteName$ host=$machinename$
+          | timechart avg(Avg._Disk_sec/Transfer) AS "Avg. Disk sec/Transfer" by instance</query>
           <earliest>$earliest$</earliest>
           <latest>$latest$</latest>
         </search>
@@ -193,8 +207,11 @@
       <chart>
         <title>% Free Space</title>
         <search>
-          <query>`xd_perfmon_index` sourcetype="PerfmonMk:LogicalDisk" SiteName="$SiteName$" host="$machinename$" instance!="_Total" |
-	timechart avg(%_Free_Space) AS avg by instance</query>
+          <query>| mstats avg("LogicalDisk.%_Free_Space") AS "%_Free_Space" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="_Total" span=60s BY host, instance
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName 
+          | search SiteName=$SiteName$ host=$machinename$
+          | timechart avg(%_Free_Space) AS avg by instance</query>
           <earliest>$earliest$</earliest>
           <latest>$latest$</latest>
         </search>
@@ -223,12 +240,14 @@
       <table>
         <title>Disk I/O by Process</title>
         <search>
-          <query>`xd_perfmon_index` SiteName="$SiteName$" host="$machinename$" sourcetype="PerfmonMk:Process" instance!="_Total" |
-	rename IO_Write_Operations/sec AS write IO_Read_Operations/sec AS read |
-	eval iops = read + write |
-	stats avg(iops) AS iops avg(read) AS reads avg(write) AS writes by instance |
-	table instance iops reads writes |
-	rename iops AS "Total I/O" reads AS "Read I/O" writes AS "Write I/O"</query>
+          <query>| mstats avg("Process.IO_Write_Operations/sec") AS "write" avg("Process.IO_Read_Operations/sec") AS "read" WHERE `xd_perfmon_index` AND host=$machinename$ AND instance!="_Total" span=60s BY host, instance
+          | eval host=upper(host) 
+          | lookup lookup_host_site.csv MachineName as host OUTPUT SiteName 
+          | search SiteName=$SiteName$ host=$machinename$
+          | eval iops = read + write 
+          | stats avg(iops) AS iops avg(read) AS reads avg(write) AS writes by instance
+          | table instance iops reads writes
+          | rename iops AS "Total I/O" reads AS "Read I/O" writes AS "Write I/O"</query>
           <earliest>$earliest$</earliest>
           <latest>$latest$</latest>
         </search>

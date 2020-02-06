@@ -31,7 +31,7 @@
   <row>
     <table id="tblServices">
       <searchString>
-	`xd_index` sourcetype="WMI:Services" host="$machinename$" DisplayName="$service$" |
+	`xd_winservice_index` source=service host="$machinename$" DisplayName="$service$" |
 	streamstats current=false last(State) AS new_state last(_time) AS time_of_change BY DisplayName |
 	where State != new_state |
 	convert ctime(time_of_change) AS time_of_change |

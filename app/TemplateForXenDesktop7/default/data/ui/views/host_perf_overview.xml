@@ -36,15 +36,18 @@
       <table>
         <search>
           <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:Processor" instance="_Total" SiteName="$SiteName$" host="$machinename$" |
-        	stats avg(%_Processor_Time) AS avg max(%_Processor_Time) AS max sparkline(avg(%_Processor_Time)) AS Trend latest(%_Processor_Time) as Current latest(_time) as "Last Updated" by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend "Last Updated" |
-        	rename host AS Machine avg AS "Average" max AS "Max Value"
+| mstats avg("Processor.%_Processor_Time") AS "ProcAvg" max(Processor.%_Processor_Time) AS "ProcMax" WHERE `xd_perfmon_index` AND host="$machinename$" span=60s BY host 
+| eval host=upper(host)
+| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+| search SiteName="$SiteName$" 
+| stats avg(ProcAvg) AS avg max(ProcMax) AS max sparkline(avg(ProcAvg)) AS Trend latest(ProcAvg) as Current latest(_time) as "Last Updated" by host 
+| convert ctime("Last Updated") 
+| sort 10 - avg 
+| eval avg = round(avg, 2) 
+| eval max = round(max, 2) 
+| eval Current = round(Current, 2) 
+| table host avg max Current Trend "Last Updated" 
+| rename host AS Machine avg AS "Average" max AS "Max Value"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
@@ -73,18 +76,22 @@
       <table>
         <search>
           <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:System" SiteName="$SiteName$" host="$machinename$" |
-        	lookup winHosts host OUTPUT NumberOfCores |
-        	fillnull value="1" NumberOfCores |
-        	eval Processor_Queue_Length = Processor_Queue_Length / NumberOfCores |
-        	stats avg(Processor_Queue_Length) AS avg max(Processor_Queue_Length) AS max sparkline(avg(Processor_Queue_Length)) AS Trend latest(Processor_Queue_Length) AS Current latest(_time) AS "Last Updated" values(NumberOfCores) AS NumberOfCores by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend NumberOfCores "Last Updated" |
-        	rename host AS Machine NumberOfCores AS "# Cores" avg AS "Average/Core" max AS "Max/Core"
+| mstats avg("System.Processor_Queue_Length") AS "QueueAvg" max("System.Processor_Queue_Length") AS "QueueMax" WHERE `xd_perfmon_index` AND host="*" span=60s BY host
+| eval host=upper(host)
+| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+| search SiteName="$SiteName$" 
+| lookup winHosts host OUTPUT NumberOfCores 
+| fillnull value="1" NumberOfCores 
+| eval QueueAvg = QueueAvg / NumberOfCores
+| eval QueueMax = QueueMax / NumberOfCores
+| stats avg(QueueAvg) AS avg max(QueueMax) AS max sparkline(avg(QueueAvg)) AS Trend latest(QueueAvg) AS Current latest(_time) AS "Last Updated" values(NumberOfCores) AS NumberOfCores by host 
+| convert ctime("Last Updated") 
+| sort 10 - avg 
+| eval avg = round(avg, 2) 
+| eval max = round(max, 2) 
+| eval Current = round(Current, 2) 
+| table host avg max Current Trend NumberOfCores "Last Updated" 
+| rename host AS Machine NumberOfCores AS "# Cores" avg AS "Average/Core" max AS "Max/Core"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
@@ -114,23 +121,25 @@
       <title>Memory Metrics</title>
       <input type="dropdown" token="memMetric" searchWhenChanged="true">
         <label>Memory Metric:</label>
-        <choice value="Available_Bytes">Available MB</choice>
-        <choice value="Pages/sec">Pages/sec</choice>
-        <default>Available_Bytes</default>
+        <choice value="Memory.Available_Bytes">Available Bytes</choice>
+        <choice value="Memory.Pages/sec">Pages/sec</choice>
+        <default>Memory.Available_Bytes</default>
       </input>
       <table id="tblMemMetrics">
         <search>
           <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:Memory" SiteName="$SiteName$" host="$machinename$" |
-        	eval Available_Bytes = Available_Bytes / 1024 |
-        	stats avg($memMetric$) AS avg max($memMetric$) AS max sparkline(avg($memMetric$)) AS Trend latest($memMetric$) as Current latest(_time) as "Last Updated" by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend "Last Updated" |
-        	rename host AS Machine avg AS "Average" max AS "Max"
+        	| mstats avg($memMetric$) AS "MemAvg" max($memMetric$) AS "MemMax" WHERE `xd_perfmon_index` AND host="$machinename$" span=60s BY host 
+        	| eval host=upper(host)
+        	| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName="$SiteName$"
+        	| stats avg(MemAvg) AS avg max(MemMax) AS max sparkline(avg(MemAvg)) AS Trend latest(MemAvg) as Current latest(_time) as "Last Updated" by host
+        	| convert ctime("Last Updated")
+        	| sort 10 - avg
+        	| eval avg = round(avg, 2)
+        	| eval max = round(max, 2)
+        	| eval Current = round(Current, 2)
+        	| table host avg max Current Trend "Last Updated"
+        	| rename host AS Machine avg AS "Average" max AS "Max"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
@@ -158,24 +167,27 @@
       <title>Disk Metrics</title>
       <input type="dropdown" token="diskMetric" searchWhenChanged="true">
         <label>Disk Metric:</label>
-        <choice value="%_Free_Space">% Free Space</choice>
-        <choice value="%_Disk_Time">% Disk Time</choice>
-        <choice value="Current_Disk_Queue_Length">Current Disk Queue Length</choice>
-        <choice value="Avg._Disk_sec/Transfer">Avg. Disk sec/Transer</choice>
-        <default>Avg._Disk_sec/Transfer</default>
+        <choice value="LogicalDisk.%_Free_Space">% Free Space</choice>
+        <choice value="LogicalDisk.%_Disk_Time">% Disk Time</choice>
+        <choice value="LogicalDisk.Current_Disk_Queue_Length">Current Disk Queue Length</choice>
+        <choice value="LogicalDisk.Avg._Disk_sec/Transfer">Avg. Disk sec/Transer</choice>
+        <default>LogicalDisk.Avg._Disk_sec/Transfer</default>
       </input>
       <table id="tblDiskMetrics">
         <search>
           <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:LogicalDisk" instance="_Total" SiteName="$SiteName$" host="$machinename$" |
-        	stats avg($diskMetric$) AS avg max($diskMetric$) AS max sparkline(avg($diskMetric$)) AS Trend latest($diskMetric$) as Current latest(_time) as "Last Updated" by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend "Last Updated" |
-        	rename host AS Machine avg AS "Average" max AS "Max"
+        	| mstats avg($diskMetric$) AS "DiskAvg" max($diskMetric$) AS "DiskMax" WHERE `xd_perfmon_index` AND host="$machinename$" span=60s BY host 
+        	| eval host=upper(host)
+        	| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName="$SiteName$"
+        	| stats avg(DiskAvg) AS avg max(DiskMax) AS max sparkline(avg(DiskAvg)) AS Trend latest(DiskAvg) as Current latest(_time) as "Last Updated" by host
+        	| convert ctime("Last Updated")
+        	| sort 10 - avg
+        	| eval avg = round(avg, 2)
+        	| eval max = round(max, 2)
+        	| eval Current = round(Current, 2)
+        	| table host avg max Current Trend "Last Updated"
+        	| rename host AS Machine avg AS "Average" max AS "Max"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
@@ -205,20 +217,22 @@
       <title>Page File Metrics - % Usage</title>
       <table>
         <search>
-          <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:PageFile" SiteName="$SiteName$" host="$machinename$" |
-        	stats avg(%_Usage) AS avg max(%_Usage) AS max sparkline(avg(%_Usage)) AS "Trend" latest(%_Usage) as Current latest(_time) as "Last Updated" by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend "Last Updated" |
-        	rename host AS Machine avg AS "Average" max AS "Max"
+          <query>| mstats avg("Paging_File.%_Usage") AS "PageAvg" max("Paging_File.%_Usage") AS "PageMax" WHERE `xd_perfmon_index` AND host="$machinename$" span=60s BY host 
+        	| eval host=upper(host)
+        	| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName="$SiteName$"
+        	| stats avg(PageAvg) AS avg max(PageMax) AS max sparkline(avg(PageAvg)) AS Trend latest(PageAvg) as Current latest(_time) as "Last Updated" by host
+        	| convert ctime("Last Updated")
+        	| sort 10 - avg
+        	| eval avg = round(avg, 2)
+        	| eval max = round(max, 2)
+        	| eval Current = round(Current, 2)
+        	| table host avg max Current Trend "Last Updated"
+        	| rename host AS Machine avg AS "Average" max AS "Max"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
-        <option name="drilldown">row</option>
+        <option name="drilldown">none</option>
         <option name="rowNumbers">false</option>
         <option name="wrap">true</option>
         <format field="Trend" type="sparkline">
@@ -229,13 +243,6 @@
           <option name="spotRadius">3</option>
           <option name="tooltipPrefix">Average % Usage:</option>
         </format>
-        <drilldown>
-          <link>
-            <![CDATA[
-            /app/TemplateForXenDesktop7/search?q=search `xd_perfmon_index` sourcetype="PerfmonMk:PageFile" SiteName="$SiteName$" host="$machinename$" | timechart avg(%25_Usage) AS "Avg. %25 Pagefile Usage" by host&earliest=$earliest$&latest=$latest$&display.general.type=visualizations&display.visualizations.charting.chart=area&display.visualizations.charting.axisTitleX.visibility=collapsed&display.visualizations.charting.legend.placement=bottom
-          ]]>
-          </link>
-        </drilldown>
       </table>
     </panel>
     <panel>
@@ -243,19 +250,22 @@
       <table>
         <search>
           <query>
-        	`xd_perfmon_index` sourcetype="PerfmonMk:NetworkInterface" SiteName="$SiteName$" host="$machinename$" |
-        	stats avg(Bytes_Total/sec) AS avg max(Bytes_Total/sec) AS max sparkline(avg(Bytes_Total/sec)) AS Trend latest(Bytes_Total/sec) as Current latest(_time) as "Last Updated" by host |
-        	convert ctime("Last Updated") |
-        	sort 10 - avg |
-        	eval avg = round(avg, 2) |
-        	eval max = round(max, 2) |
-        	eval Current = round(Current, 2) |
-        	table host avg max Current Trend "Last Updated" |
-        	rename host AS Machine avg AS "Average" max AS "Max"
+        	| mstats avg("Network_Interface.Bytes_Total/sec") AS "NetAvg" max("Network_Interface.Bytes_Total/sec") AS "NetMax" WHERE `xd_perfmon_index` AND host="$machinename$" span=60s BY host 
+        	| eval host=upper(host)
+        	| lookup lookup_host_site.csv MachineName as host OUTPUT SiteName
+          | search SiteName="$SiteName$"
+        	| stats avg(NetAvg) AS avg max(NetMax) AS max sparkline(avg(NetAvg)) AS Trend latest(NetAvg) as Current latest(_time) as "Last Updated" by host
+        	| convert ctime("Last Updated")
+        	| sort 10 - avg
+        	| eval avg = round(avg, 2)
+        	| eval max = round(max, 2)
+        	| eval Current = round(Current, 2)
+        	| table host avg max Current Trend "Last Updated"
+        	| rename host AS Machine avg AS "Average" max AS "Max"
 	      </query>
         </search>
         <option name="dataOverlayMode">none</option>
-        <option name="drilldown">row</option>
+        <option name="drilldown">none</option>
         <option name="rowNumbers">false</option>
         <option name="wrap">true</option>
         <format field="Trend" type="sparkline">
@@ -266,13 +276,6 @@
           <option name="spotRadius">3</option>
           <option name="tooltipPrefix">Average Value:</option>
         </format>
-        <drilldown>
-          <link>
-            <![CDATA[
-            /app/TemplateForXenDesktop7/search?q=search `xd_perfmon_index` sourcetype="PerfmonMk:NetworkInterface" SiteName="$SiteName$" host="$machinename$" | timechart avg(Bytes_Total/sec) AS "Avg. Bytes/sec" by host&earliest=$earliest$&latest=$latest$&display.general.type=visualizations&display.visualizations.charting.legend.placement=bottom&display.visualizations.charting.axisTitleX.visibility=collapsed&display.visualizations.charting.chart.nullValueMode=zero
-          ]]>
-          </link>
-        </drilldown>
       </table>
     </panel>
   </row>

@@ -13,7 +13,10 @@
     </input>
     <input type="time">
       <label>Time Range:</label>
-      <default>Last 24 hours</default>
+	    <default>
+          <earliest>-4h@m</earliest>
+          <latest>now</latest>
+		</default>
     </input>
     <input type="dropdown" token="ServiceGroup">
       <label>Service Group:</label>
@@ -76,7 +79,7 @@
     <panel>
       <table id="tblServices">
         <search>
-          <query>`xd_index` sourcetype="WMI:Services" host="$machinename$" SiteName="$SiteName$" ServiceGroup="$ServiceGroup$" |
+          <query>`xd_winservice_index` source=service host="$machinename$" SiteName="$SiteName$" ServiceGroup="$ServiceGroup$" |
         	stats latest(State) AS State by host SiteName DisplayName  |
         	search State="$state$*" |
         	table SiteName host  DisplayName State |

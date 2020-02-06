@@ -25,7 +25,7 @@
     <table id="userSessions">
       <search>
         <query>
-          `xd_winevents_index` sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operational" UserName="$username$" Id=4001 |
+          `xd_index` sourcetype="WinEventLog:Microsoft-Windows-GroupPolicy/Operational" UserName="$username$" Id=4001 |
           table UserName TimeCreated host ActivityId |
           rename UserName AS "User Name" TimeCreated AS "Logon Time" host AS "Server"
         </query>
